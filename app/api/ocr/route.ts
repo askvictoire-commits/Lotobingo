@@ -22,43 +22,47 @@ export async function POST(req: NextRequest) {
       'Return ONLY this raw JSON (no markdown, no explanation): { "lines": [[r1c1,r1c2,...,r1c9],[r2c1,...,r2c9],[r3c1,...,r3c9]] }. ' +
       "Use 0 for empty cells. All numbers are integers between 0 and 100.";
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    mimeType: mimeType || "image/jpeg",
-                    data: image,
-                  },
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 512,
-          },
-        }),
-      }
-    );
+    // Try gemini-2.0-flash first, fall back to gemini-1.5-flash
+    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    let geminiRes: Response | null = null;
+    let lastErrText = "";
 
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      console.error("Gemini API error:", errText);
-      return NextResponse.json(
-        { error: "Gemini API error" },
-        { status: 502 }
+    for (const model of models) {
+      geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: prompt },
+                  { inlineData: { mimeType: mimeType || "image/jpeg", data: image } },
+                ],
+              },
+            ],
+            generationConfig: { temperature: 0, maxOutputTokens: 512 },
+          }),
+        }
       );
+      if (geminiRes.ok) break;
+      lastErrText = await geminiRes.text();
+      console.error(`Model ${model} failed:`, lastErrText);
+    }
+
+    if (!geminiRes || !geminiRes.ok) {
+      // Try to extract a readable error message from Gemini's response
+      let friendlyError = "Gemini API error";
+      try {
+        const parsed = JSON.parse(lastErrText);
+        friendlyError = parsed?.error?.message || parsed?.error?.status || friendlyError;
+      } catch { /* ignore */ }
+      return NextResponse.json({ error: friendlyError }, { status: 502 });
     }
 
     const geminiData = await geminiRes.json();
+
     const rawText: string =
       geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
