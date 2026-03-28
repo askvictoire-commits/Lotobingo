@@ -30,24 +30,46 @@ export default function GridEditor({ grid, gridIndex, playerName, canDelete }: G
   const allNumbers = grid.numbers.flat().filter((n) => n > 0);
   const hasDuplicates = allNumbers.length !== new Set(allNumbers).size;
 
+  // Compress image to max 1024px, JPEG 85% before sending to API
+  const compressImage = (dataUrl: string): Promise<{ base64: string; mimeType: string; sizeKb: number }> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1024;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+          else { width = Math.round((width * MAX) / height); height = MAX; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL("image/jpeg", 0.85);
+        const [, base64] = compressed.split(",");
+        resolve({ base64, mimeType: "image/jpeg", sizeKb: Math.round(base64.length * 0.75 / 1024) });
+      };
+      img.src = dataUrl;
+    });
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setScanStatus("idle");
+    setScanErrorMsg("");
 
-    // Show preview
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const dataUrl = ev.target?.result as string;
       setPreview(dataUrl);
 
-      // Split base64
-      const [header, base64] = dataUrl.split(",");
-      const mimeType = header.match(/data:([^;]+)/)?.[1] || "image/jpeg";
-
       setScanning(true);
       try {
+        // Compress before sending
+        const { base64, mimeType, sizeKb } = await compressImage(dataUrl);
+        console.log(`📸 Image compressée : ${sizeKb} Ko`);
+
         const res = await fetch("/api/ocr", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -57,7 +79,7 @@ export default function GridEditor({ grid, gridIndex, playerName, canDelete }: G
         const json = await res.json();
 
         if (!res.ok || !json.lines) {
-          setScanErrorMsg(json.error || `Erreur ${res.status}`);
+          setScanErrorMsg(json.error || `Erreur serveur ${res.status}`);
           setScanStatus("error");
           return;
         }
@@ -80,10 +102,9 @@ export default function GridEditor({ grid, gridIndex, playerName, canDelete }: G
       }
     };
     reader.readAsDataURL(file);
-
-    // Allow re-scanning same file
     e.target.value = "";
   };
+
 
   const resetScan = () => {
     setPreview(null);

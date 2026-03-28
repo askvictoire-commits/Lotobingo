@@ -17,7 +17,10 @@ export async function POST(req: NextRequest) {
     }
 
     const prompt =
-      'This image is a bingo grid. Extract all numbers organized in exactly 3 rows of 9 numbers each. Return only a raw JSON, no markdown: { "lines": [[n,n,n,n,n,n,n,n,n],[n,n,n,n,n,n,n,n,n],[n,n,n,n,n,n,n,n,n]] }. All values are between 0 and 100.';
+      "This image shows a French loto/bingo card. It has 3 rows and 9 columns of numbers. " +
+      "Some cells may be empty or contain 0. Extract all numbers row by row. " +
+      'Return ONLY this raw JSON (no markdown, no explanation): { "lines": [[r1c1,r1c2,...,r1c9],[r2c1,...,r2c9],[r3c1,...,r3c9]] }. ' +
+      "Use 0 for empty cells. All numbers are integers between 0 and 100.";
 
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -59,6 +62,8 @@ export async function POST(req: NextRequest) {
     const rawText: string =
       geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
+    console.log("Gemini raw response:", rawText);
+
     if (!rawText) {
       return NextResponse.json(
         { error: "Empty response from Gemini" },
@@ -76,37 +81,32 @@ export async function POST(req: NextRequest) {
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return NextResponse.json(
-        { error: "Could not find JSON in response" },
+        { error: `JSON introuvable dans: ${cleaned.slice(0, 100)}` },
         { status: 422 }
       );
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
 
-    // Validate structure: must have exactly 3 rows of 9
-    if (
-      !parsed.lines ||
-      !Array.isArray(parsed.lines) ||
-      parsed.lines.length !== 3 ||
-      parsed.lines.some(
-        (row: unknown) => !Array.isArray(row) || (row as unknown[]).length !== 9
-      )
-    ) {
+    if (!parsed.lines || !Array.isArray(parsed.lines) || parsed.lines.length === 0) {
       return NextResponse.json(
-        { error: "Grid structure invalid (expected 3×9)" },
+        { error: "Structure invalide (pas de lignes)" },
         { status: 422 }
       );
     }
 
-    // Clamp values to 0–100
-    const lines: number[][] = parsed.lines.map((row: unknown[]) =>
-      row.map((n) => {
-        const num = Number(n);
-        return isNaN(num) ? 0 : Math.min(100, Math.max(0, Math.round(num)));
-      })
-    );
+    // Normalize: ensure exactly 3 rows of 9 (pad/truncate as needed)
+    const lines: number[][] = [0, 1, 2].map((i) => {
+      const row: unknown[] = Array.isArray(parsed.lines[i]) ? parsed.lines[i] : [];
+      const normalized = Array.from({ length: 9 }, (_, j) => {
+        const n = Number(row[j]);
+        return isNaN(n) ? 0 : Math.min(100, Math.max(0, Math.round(n)));
+      });
+      return normalized;
+    });
 
     return NextResponse.json({ lines });
+
   } catch (err) {
     console.error("OCR route error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
