@@ -3,7 +3,7 @@ import { useState, useRef, useCallback } from "react";
 import { Send, CheckCircle2, X } from "lucide-react";
 import { useLotoContext } from "@/lib/LotoContext";
 import { PLAYER_COLORS, PlayerName, Grid } from "@/lib/types";
-import { playQuineSound, playBingoSound } from "@/lib/sounds";
+import { playQuineSound, playBingoSound, stopQuineSound, stopBingoSound } from "@/lib/sounds";
 import NumberBadge from "@/components/NumberBadge";
 import BingoAlert from "@/components/BingoAlert";
 
@@ -231,7 +231,10 @@ export default function GamePage() {
                   <BingoAlert
                     gridLabel={`Grille ${gridIdx + 1}`}
                     playerName={player.name}
-                    onClose={() => setClosedBingos(b => [...b, grid.id])}
+                    onClose={() => {
+                      setClosedBingos(b => [...b, grid.id]);
+                      stopBingoSound();
+                    }}
                   />
                 ) : (
                   <>
@@ -239,7 +242,10 @@ export default function GamePage() {
                     {lineResults.some((l) => l.complete) && !closedQuines.includes(grid.id) && (
                       <div className="relative overflow-hidden rounded-xl h-[120px] mb-4 shadow-[0_4px_15px_rgba(123,47,255,0.2)] bg-[url('/quine.png')] bg-cover bg-center animate-pop_in">
                         <button 
-                          onClick={() => setClosedQuines(q => [...q, grid.id])} 
+                          onClick={() => {
+                            setClosedQuines(q => [...q, grid.id]);
+                            stopQuineSound();
+                          }} 
                           className="absolute top-2 left-2 z-30 bg-black/40 p-1.5 rounded-full text-white hover:bg-black/70 pointer-events-auto transition-colors shadow-sm"
                         >
                           <X size={16} />
