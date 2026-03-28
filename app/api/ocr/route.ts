@@ -22,11 +22,11 @@ export async function POST(req: NextRequest) {
       'Return ONLY this raw JSON (no markdown, no explanation): { "lines": [[r1c1,r1c2,...,r1c9],[r2c1,...,r2c9],[r3c1,...,r3c9]] }. ' +
       "Use 0 for empty cells. All numbers are integers between 0 and 100.";
 
-    // Essayer les modèles stables dans l'ordre de préférence
+    // Utilise les modèles existants listés par l'API (gemini 1.5 est déprécié/inaccessible ici)
     const models = [
-      "gemini-1.5-flash-latest",
-      "gemini-1.5-flash",
-      "gemini-1.5-pro-latest"
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-flash-latest"
     ];
     let geminiRes: Response | null = null;
     const errors: string[] = [];
