@@ -125,7 +125,6 @@ export default function GamePage() {
       <div className="flex gap-2 mb-5 overflow-x-auto pb-1 no-scrollbar">
         {FILTER_OPTIONS.map((f) => {
           const isActive = activeFilter === f;
-          const color = f !== "Toutes" ? PLAYER_COLORS[f as PlayerName] : null;
           return (
             <button
               key={f}

@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   GameSession,
-  Player,
   PlayerName,
   Draw,
   DrawResult,
@@ -11,7 +10,6 @@ import {
   createInitialSession,
   createEmptyGrid,
   STORAGE_KEY,
-  PLAYERS,
 } from "./types";
 
 export function useLoto() {

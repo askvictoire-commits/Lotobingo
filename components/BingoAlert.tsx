@@ -8,7 +8,10 @@ interface BingoAlertProps {
 
 function playBingoSound() {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioCtx = window.AudioContext ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).webkitAudioContext;
+    const ctx = new AudioCtx();
 
     const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
     notes.forEach((freq, i) => {
