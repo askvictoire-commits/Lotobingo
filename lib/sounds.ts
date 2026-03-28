@@ -1,24 +1,50 @@
-// Shared sound utilities for LotoBingo
-// Uses Web Audio API — no external files
+let currentQuineAudio: HTMLAudioElement | null = null;
+let currentBingoAudio: HTMLAudioElement | null = null;
 
 export function playQuineSound() {
   try {
-    const audio = new Audio('/quine-son.mp3');
-    audio.play().catch(() => {});
+    if (currentQuineAudio) {
+      currentQuineAudio.pause();
+      currentQuineAudio.currentTime = 0;
+    }
+    currentQuineAudio = new Audio('/quine-son.mp3');
+    currentQuineAudio.play().catch(() => {});
   } catch {
     //
   }
 }
 
+export function stopQuineSound() {
+  try {
+    if (currentQuineAudio) {
+      currentQuineAudio.pause();
+      currentQuineAudio.currentTime = 0;
+    }
+  } catch {}
+}
+
 export function playBingoSound() {
   try {
-    const audio = new Audio('/bingo-karcher.wav');
-    audio.play().catch(() => {});
+    if (currentBingoAudio) {
+      currentBingoAudio.pause();
+      currentBingoAudio.currentTime = 0;
+    }
+    currentBingoAudio = new Audio('/bingo-karcher.wav');
+    currentBingoAudio.play().catch(() => {});
+    
     setTimeout(() => {
-      audio.pause();
-      audio.currentTime = 0;
+      stopBingoSound();
     }, 10000);
   } catch {
     //
   }
+}
+
+export function stopBingoSound() {
+  try {
+    if (currentBingoAudio) {
+      currentBingoAudio.pause();
+      currentBingoAudio.currentTime = 0;
+    }
+  } catch {}
 }
