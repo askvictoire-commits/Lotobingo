@@ -247,6 +247,21 @@ export default function GamePage() {
                   />
                 ) : (
                   <>
+                    {/* Bannière Quine qui s'affiche au-dessus de la grille */}
+                    {lineResults.some((l) => l.complete) && (
+                      <div className="relative overflow-hidden rounded-xl h-[120px] mb-4 shadow-[0_4px_15px_rgba(123,47,255,0.2)] bg-[url('/quine.png')] bg-cover bg-center animate-pop_in">
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent h-2/3 pointer-events-none" />
+                        <div className="absolute bottom-2 left-3 flex flex-col z-10 text-left">
+                          <p className="font-anton text-[20px] text-white tracking-wider">
+                            QUINE !
+                          </p>
+                          <p className="font-dm text-white/90 text-[10px]">
+                            {player.name} · Grille {gridIdx + 1}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Grid header */}
                     <div className="flex items-center justify-between mb-2">
                       <span className={`font-anton text-lg ${colors.text}`}>
