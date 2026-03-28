@@ -22,9 +22,14 @@ export async function POST(req: NextRequest) {
       'Return ONLY this raw JSON (no markdown, no explanation): { "lines": [[r1c1,r1c2,...,r1c9],[r2c1,...,r2c9],[r3c1,...,r3c9]] }. ' +
       "Use 0 for empty cells. All numbers are integers between 0 and 100.";
 
-    // Try gemini-2.0-flash first, fall back to gemini-1.5-flash
-    const models = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    // Essayer les modèles stables dans l'ordre de préférence
+    const models = [
+      "gemini-1.5-flash-latest",
+      "gemini-1.5-flash",
+      "gemini-1.5-pro-latest"
+    ];
     let geminiRes: Response | null = null;
+    let errors: string[] = [];
     let lastErrText = "";
 
     for (const model of models) {
@@ -48,17 +53,19 @@ export async function POST(req: NextRequest) {
       );
       if (geminiRes.ok) break;
       lastErrText = await geminiRes.text();
+      errors.push(`${model}: ${lastErrText}`);
       console.error(`Model ${model} failed:`, lastErrText);
     }
 
     if (!geminiRes || !geminiRes.ok) {
-      // Try to extract a readable error message from Gemini's response
+      // Return the error from the first model (usually the most preferred one)
       let friendlyError = "Gemini API error";
       try {
-        const parsed = JSON.parse(lastErrText);
-        friendlyError = parsed?.error?.message || parsed?.error?.status || friendlyError;
+        const firstErr = errors[0];
+        const parsed = JSON.parse(firstErr.substring(firstErr.indexOf('{')));
+        friendlyError = parsed?.error?.message || friendlyError;
       } catch { /* ignore */ }
-      return NextResponse.json({ error: friendlyError }, { status: 502 });
+      return NextResponse.json({ error: friendlyError, details: errors }, { status: 502 });
     }
 
     const geminiData = await geminiRes.json();
