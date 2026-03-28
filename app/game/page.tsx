@@ -2,11 +2,28 @@
 import { useState, useRef, useCallback } from "react";
 import { Send, CheckCircle2 } from "lucide-react";
 import { useLotoContext } from "@/lib/LotoContext";
-import { PLAYER_COLORS, PlayerName } from "@/lib/types";
+import { PLAYER_COLORS, PlayerName, Grid } from "@/lib/types";
+import { playQuineSound, playBingoSound } from "@/lib/sounds";
 import NumberBadge from "@/components/NumberBadge";
 import BingoAlert from "@/components/BingoAlert";
+import QuineToast from "@/components/QuineToast";
 
 const FILTER_OPTIONS: (PlayerName | "Toutes")[] = ["Toutes", "Astrid", "Marie", "Victoire"];
+
+// Compute line completion for a grid given drawn numbers
+function getLineResults(grid: Grid, drawn: number[]) {
+  return [0, 1, 2].map((lineIdx) => {
+    const row = grid.numbers[lineIdx];
+    const nonZero = row.filter((n) => n > 0);
+    const complete = nonZero.length > 0 && nonZero.every((n) => drawn.includes(n));
+    return { lineIndex: lineIdx as 0 | 1 | 2, complete };
+  });
+}
+
+interface ToastItem {
+  id: string;
+  message: string;
+}
 
 export default function GamePage() {
   const {
@@ -24,7 +41,14 @@ export default function GamePage() {
   const [activeFilter, setActiveFilter] = useState<PlayerName | "Toutes">("Toutes");
   const [error, setError] = useState("");
   const [lastDrawn, setLastDrawn] = useState<number | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  // Track announced quines to avoid repeating them
+  const announcedLines = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   const handleDraw = useCallback(() => {
     const num = parseInt(inputValue.trim(), 10);
@@ -37,12 +61,66 @@ export default function GamePage() {
       return;
     }
     setError("");
+
+    const newDrawn = [...currentDrawnNumbers, num];
+
+    // Detect new quines / bingos BEFORE updating state
+    const newToasts: ToastItem[] = [];
+    let hasBingo = false;
+
+    session.players.forEach((player) => {
+      player.grids.forEach((grid, gridIdx) => {
+        let gridJustBingo = false;
+        const lineResults = getLineResults(grid, newDrawn);
+
+        lineResults.forEach(({ lineIndex, complete }) => {
+          const key = `${grid.id}-${lineIndex}`;
+          if (announcedLines.current.has(key)) return;
+
+          if (complete) {
+            announcedLines.current.add(key);
+            const toastId = `${Date.now()}-${key}`;
+            newToasts.push({
+              id: toastId,
+              message: `QUINE — ${player.name} · Grille ${gridIdx + 1} · Ligne ${lineIndex + 1} !`,
+            });
+            // Check if all 3 lines are now complete → BINGO
+            const allComplete = lineResults.every((lr) =>
+              lr.lineIndex === lineIndex ? true : announcedLines.current.has(`${grid.id}-${lr.lineIndex}`)
+            );
+            if (allComplete) {
+              gridJustBingo = true;
+              hasBingo = true;
+            }
+          }
+        });
+
+        // If this grid just got BINGO, play bingo sound slightly after quine
+        if (gridJustBingo) {
+          setTimeout(() => playBingoSound(), 350);
+        }
+      });
+    });
+
+    if (newToasts.length > 0) {
+      playQuineSound();
+      setToasts((prev) => [...prev, ...newToasts]);
+    }
+
     drawNumber(num);
     setLastDrawn(num);
     setInputValue("");
     inputRef.current?.focus();
     setTimeout(() => setLastDrawn(null), 2000);
-  }, [inputValue, currentDrawnNumbers, drawNumber]);
+
+    void hasBingo; // used via setTimeout above
+  }, [inputValue, currentDrawnNumbers, drawNumber, session]);
+
+  const handleFinalize = useCallback(() => {
+    finalizeDraw();
+    announcedLines.current = new Set();
+    setToasts([]);
+  }, [finalizeDraw]);
 
   const filteredPlayers = session.players.filter(
     (p) => activeFilter === "Toutes" || p.name === activeFilter
@@ -58,14 +136,22 @@ export default function GamePage() {
 
   return (
     <div className="px-4 pt-8">
+      {/* Quine toasts — fixed top */}
+      <div className="fixed top-4 left-4 right-4 z-50 max-w-sm mx-auto space-y-2 pointer-events-none">
+        {toasts.map((t) => (
+          <div key={t.id} className="pointer-events-auto">
+            <QuineToast id={t.id} message={t.message} onClose={removeToast} />
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-anton text-4xl tracking-wide">
-          Tirage{" "}
-          <span className="text-bingo-blue">#{session.currentDrawNumber}</span>
+          Tirage <span className="text-bingo-blue">#{session.currentDrawNumber}</span>
         </h1>
         <span className="font-dm text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-          {currentDrawnNumbers.length} numéros tirés
+          {currentDrawnNumbers.length} numéros
         </span>
       </div>
 
@@ -79,10 +165,7 @@ export default function GamePage() {
             min={0}
             max={100}
             value={inputValue}
-            onChange={(e) => {
-              setInputValue(e.target.value);
-              setError("");
-            }}
+            onChange={(e) => { setInputValue(e.target.value); setError(""); }}
             onKeyDown={(e) => e.key === "Enter" && handleDraw()}
             placeholder="Numéro tiré..."
             className="flex-1 text-center text-2xl font-anton tracking-widest rounded-2xl border-2 border-gray-200 focus:outline-none focus:border-bingo-blue focus:ring-2 focus:ring-bingo-blue/20 py-3 px-4 transition-all"
@@ -101,13 +184,11 @@ export default function GamePage() {
       {lastDrawn !== null && (
         <div className="flex items-center gap-2 mb-3 animate-pop_in">
           <CheckCircle2 size={16} className="text-bingo-pink" />
-          <span className="font-dm text-sm text-bingo-pink font-semibold">
-            {lastDrawn} ajouté !
-          </span>
+          <span className="font-dm text-sm text-bingo-pink font-semibold">{lastDrawn} ajouté !</span>
         </div>
       )}
 
-      {/* Drawn numbers badges */}
+      {/* Drawn numbers */}
       {currentDrawnNumbers.length > 0 && (
         <div className="mb-5 flex flex-wrap gap-1.5">
           {[...currentDrawnNumbers].reverse().map((n) => (
@@ -122,7 +203,7 @@ export default function GamePage() {
       )}
 
       {/* Player filter pills */}
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1 no-scrollbar">
+      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
         {FILTER_OPTIONS.map((f) => {
           const isActive = activeFilter === f;
           return (
@@ -130,12 +211,10 @@ export default function GamePage() {
               key={f}
               onClick={() => setActiveFilter(f)}
               className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-dm font-medium border-2 transition-all duration-150
-                ${
-                  isActive
-                    ? "bg-bingo-blue text-white border-bingo-blue shadow-[0_2px_10px_rgba(0,102,255,0.3)]"
-                    : "text-bingo-violet border-bingo-violet hover:bg-bingo-violet/5"
-                }
-              `}
+                ${isActive
+                  ? "bg-bingo-blue text-white border-bingo-blue shadow-[0_2px_10px_rgba(0,102,255,0.3)]"
+                  : "text-bingo-violet border-bingo-violet hover:bg-bingo-violet/5"
+                }`}
             >
               {f}
             </button>
@@ -143,7 +222,7 @@ export default function GamePage() {
         })}
       </div>
 
-      {/* Grids */}
+      {/* Grids — 3 rows × 9 badges */}
       <div className="space-y-4 mb-6">
         {filteredPlayers.map((player) =>
           player.grids.map((grid, gridIdx) => {
@@ -152,6 +231,7 @@ export default function GamePage() {
             const matchedNumbers = getMatchedNumbersForGrid(grid, currentDrawnNumbers);
             const isBingo = total > 0 && matched === total;
             const colors = PLAYER_COLORS[player.name];
+            const lineResults = getLineResults(grid, currentDrawnNumbers);
 
             return (
               <div
@@ -168,7 +248,7 @@ export default function GamePage() {
                 ) : (
                   <>
                     {/* Grid header */}
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-2">
                       <span className={`font-anton text-lg ${colors.text}`}>
                         Grille {gridIdx + 1}
                       </span>
@@ -177,22 +257,47 @@ export default function GamePage() {
                         /{total}
                       </span>
                     </div>
-
-                    {/* Player name */}
-                    <p className="font-dm text-[11px] text-gray-400 mb-2 uppercase tracking-widest">
+                    <p className="font-dm text-[10px] text-gray-400 mb-2 uppercase tracking-widest">
                       {player.name}
                     </p>
 
-                    {/* Numbers — flat 2 rows of 9 displayed as flex-wrap */}
-                    <div className="flex flex-wrap gap-1">
-                      {grid.numbers.flat().map((n, i) => (
-                        <NumberBadge
-                          key={i}
-                          number={n}
-                          isMatched={matchedNumbers.includes(n)}
-                          isNew={n === lastDrawn}
-                        />
-                      ))}
+                    {/* 3 rows × 9 badges */}
+                    <div className="space-y-1">
+                      {grid.numbers.map((row, rowIdx) => {
+                        const lineComplete = lineResults[rowIdx]?.complete;
+                        return (
+                          <div
+                            key={rowIdx}
+                            className={`flex items-center gap-1 rounded-xl px-2 py-1.5 transition-all duration-300 ${
+                              lineComplete
+                                ? "bg-bingo-violet/20 ring-1 ring-bingo-violet/40"
+                                : ""
+                            }`}
+                          >
+                            {/* Row number */}
+                            <span className="font-dm text-[9px] text-gray-300 w-3 flex-shrink-0 text-center">
+                              {rowIdx + 1}
+                            </span>
+                            {/* Badges */}
+                            <div className="flex gap-1 flex-1">
+                              {row.map((n, colIdx) => (
+                                <NumberBadge
+                                  key={colIdx}
+                                  number={n}
+                                  isMatched={matchedNumbers.includes(n)}
+                                  isNew={n === lastDrawn}
+                                />
+                              ))}
+                            </div>
+                            {/* Quine label */}
+                            {lineComplete && (
+                              <span className="font-anton text-[11px] text-bingo-violet tracking-wider ml-1 flex-shrink-0">
+                                QUINE ✓
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 )}
@@ -206,7 +311,7 @@ export default function GamePage() {
       {currentDrawnNumbers.length > 0 && (
         <div className="sticky bottom-20 pb-4 pt-2 bg-gradient-to-t from-white via-white to-transparent">
           <button
-            onClick={finalizeDraw}
+            onClick={handleFinalize}
             className="w-full py-4 rounded-2xl bg-bingo-violet text-white font-anton text-xl tracking-wider shadow-[0_4px_20px_rgba(123,47,255,0.35)] hover:shadow-[0_6px_25px_rgba(123,47,255,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
           >
             Terminer ce tirage →

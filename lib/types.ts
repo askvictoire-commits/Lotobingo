@@ -13,11 +13,17 @@ export type Player = {
   grids: Grid[];
 };
 
+export type LineResult = {
+  lineIndex: 0 | 1 | 2;
+  complete: boolean;
+};
+
 export type DrawResult = {
   gridId: string;
   playerName: PlayerName;
   matches: number;
   matchedNumbers: number[];
+  lines: LineResult[];
 };
 
 export type Draw = {

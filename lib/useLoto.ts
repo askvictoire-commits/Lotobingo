@@ -6,6 +6,7 @@ import {
   PlayerName,
   Draw,
   DrawResult,
+  LineResult,
   Grid,
   createInitialSession,
   createEmptyGrid,
@@ -121,11 +122,20 @@ export function useLoto() {
     const results: DrawResult[] = [];
     session.players.forEach((player) => {
       player.grids.forEach((grid) => {
+        const lines: LineResult[] = [0, 1, 2].map((lineIdx) => {
+          const row = grid.numbers[lineIdx];
+          const nonZero = row.filter((n) => n > 0);
+          const complete =
+            nonZero.length > 0 &&
+            nonZero.every((n) => currentDrawnNumbers.includes(n));
+          return { lineIndex: lineIdx as 0 | 1 | 2, complete };
+        });
         results.push({
           gridId: grid.id,
           playerName: player.name,
           matches: getMatchesForGrid(grid, currentDrawnNumbers),
           matchedNumbers: getMatchedNumbersForGrid(grid, currentDrawnNumbers),
+          lines,
         });
       });
     });
