@@ -1,12 +1,11 @@
 "use client";
 import { useState, useRef, useCallback } from "react";
-import { Send, CheckCircle2 } from "lucide-react";
+import { Send, CheckCircle2, X } from "lucide-react";
 import { useLotoContext } from "@/lib/LotoContext";
 import { PLAYER_COLORS, PlayerName, Grid } from "@/lib/types";
 import { playQuineSound, playBingoSound } from "@/lib/sounds";
 import NumberBadge from "@/components/NumberBadge";
 import BingoAlert from "@/components/BingoAlert";
-import QuineToast from "@/components/QuineToast";
 
 const FILTER_OPTIONS: (PlayerName | "Toutes")[] = ["Toutes", "Astrid", "Marie", "Victoire"];
 
@@ -41,14 +40,12 @@ export default function GamePage() {
   const [activeFilter, setActiveFilter] = useState<PlayerName | "Toutes">("Toutes");
   const [error, setError] = useState("");
   const [lastDrawn, setLastDrawn] = useState<number | null>(null);
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [closedQuines, setClosedQuines] = useState<string[]>([]);
+  const [closedBingos, setClosedBingos] = useState<string[]>([]);
+  
   // Track announced quines to avoid repeating them
   const announcedLines = useRef<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
 
   const handleDraw = useCallback(() => {
     const num = parseInt(inputValue.trim(), 10);
@@ -104,7 +101,6 @@ export default function GamePage() {
 
     if (newToasts.length > 0) {
       playQuineSound();
-      setToasts((prev) => [...prev, ...newToasts]);
     }
 
     drawNumber(num);
@@ -119,7 +115,6 @@ export default function GamePage() {
   const handleFinalize = useCallback(() => {
     finalizeDraw();
     announcedLines.current = new Set();
-    setToasts([]);
   }, [finalizeDraw]);
 
   const filteredPlayers = session.players.filter(
@@ -136,14 +131,6 @@ export default function GamePage() {
 
   return (
     <div className="px-4 pt-8">
-      {/* Quine toasts — fixed top */}
-      <div className="fixed top-4 left-4 right-4 z-50 max-w-sm mx-auto space-y-2 pointer-events-none">
-        {toasts.map((t) => (
-          <div key={t.id} className="pointer-events-auto">
-            <QuineToast id={t.id} message={t.message} onClose={removeToast} />
-          </div>
-        ))}
-      </div>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -237,19 +224,26 @@ export default function GamePage() {
               <div
                 key={grid.id}
                 className={`rounded-2xl p-4 transition-all duration-300 ${
-                  isBingo ? "bg-bingo-violet" : "bg-gray-50 border border-gray-100"
+                  isBingo && !closedBingos.includes(grid.id) ? "bg-bingo-violet" : "bg-gray-50 border border-gray-100"
                 }`}
               >
-                {isBingo ? (
+                {isBingo && !closedBingos.includes(grid.id) ? (
                   <BingoAlert
                     gridLabel={`Grille ${gridIdx + 1}`}
                     playerName={player.name}
+                    onClose={() => setClosedBingos(b => [...b, grid.id])}
                   />
                 ) : (
                   <>
                     {/* Bannière Quine qui s'affiche au-dessus de la grille */}
-                    {lineResults.some((l) => l.complete) && (
+                    {lineResults.some((l) => l.complete) && !closedQuines.includes(grid.id) && (
                       <div className="relative overflow-hidden rounded-xl h-[120px] mb-4 shadow-[0_4px_15px_rgba(123,47,255,0.2)] bg-[url('/quine.png')] bg-cover bg-center animate-pop_in">
+                        <button 
+                          onClick={() => setClosedQuines(q => [...q, grid.id])} 
+                          className="absolute top-2 left-2 z-30 bg-black/40 p-1.5 rounded-full text-white hover:bg-black/70 pointer-events-auto transition-colors shadow-sm"
+                        >
+                          <X size={16} />
+                        </button>
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent h-2/3 pointer-events-none" />
                         <div className="absolute bottom-2 left-3 flex flex-col z-10 text-left">
                           <p className="font-anton text-[20px] text-white tracking-wider">
