@@ -91,15 +91,13 @@ export default function GamePage() {
             }
           }
         });
-
-        // If this grid just got BINGO, play bingo sound slightly after quine
-        if (gridJustBingo) {
-          setTimeout(() => playBingoSound(), 350);
-        }
       });
     });
 
-    if (newToasts.length > 0) {
+    // Ne jouer que le son le plus important du tirage
+    if (hasBingo) {
+      playBingoSound();
+    } else if (newToasts.length > 0) {
       playQuineSound();
     }
 
@@ -108,8 +106,6 @@ export default function GamePage() {
     setInputValue("");
     inputRef.current?.focus();
     setTimeout(() => setLastDrawn(null), 2000);
-
-    void hasBingo; // used via setTimeout above
   }, [inputValue, currentDrawnNumbers, drawNumber, session]);
 
   const handleFinalize = useCallback(() => {
