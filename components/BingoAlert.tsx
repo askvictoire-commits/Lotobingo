@@ -13,16 +13,15 @@ export default function BingoAlert({ gridLabel, playerName }: BingoAlertProps) {
   }, []);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-bingo-violet p-4 animate-pop_in">
-      {/* Glow rings */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-40 h-40 rounded-full border-4 border-white/20 animate-ping" />
-      </div>
-      <div className="relative z-10 text-center">
-        <p className="font-anton text-5xl text-white animate-pulse_bingo tracking-wider">
-          🎉 BINGO !
+    <div className="relative overflow-hidden rounded-2xl h-[180px] animate-pop_in shadow-md bg-[url('/bingo.png')] bg-cover bg-center">
+      {/* Léger dégradé pour que le texte reste lisible */}
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent h-1/2 pointer-events-none" />
+      
+      <div className="absolute bottom-3 left-4 flex flex-col z-10 text-left">
+        <p className="font-anton text-[20px] text-white tracking-wider animate-pulse_bingo">
+          BINGO !
         </p>
-        <p className="mt-1 font-dm text-white/80 text-sm">
+        <p className="font-dm text-white/90 text-[11px]">
           {playerName} · {gridLabel}
         </p>
       </div>

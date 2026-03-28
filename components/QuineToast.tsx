@@ -11,17 +11,29 @@ export default function QuineToast({ id, message, onClose }: QuineToastProps) {
   const close = useCallback(() => onClose(id), [id, onClose]);
 
   useEffect(() => {
-    const t = setTimeout(close, 3000);
+    const t = setTimeout(close, 4000); // 4sec giving time to view the image
     return () => clearTimeout(t);
   }, [close]);
 
+  // Nettoyage: extraire "Prénom Grille N ligne N" de l'ancien message "🎯 QUINE — Prénom..."
+  const cleanMessage = message.replace("🎯 QUINE — ", "").replace(" !", "");
+
   return (
     <div
-      className="flex items-center gap-3 bg-bingo-violet text-white rounded-2xl px-4 py-3 shadow-[0_8px_30px_rgba(123,47,255,0.55)] animate-pop_in cursor-pointer"
+      className="relative overflow-hidden w-64 h-24 rounded-2xl shadow-[0_8px_30px_rgba(123,47,255,0.4)] animate-pop_in cursor-pointer bg-[url('/quine.png')] bg-cover bg-center"
       onClick={close}
     >
-      <span className="text-2xl leading-none">🎯</span>
-      <span className="font-anton text-base tracking-wide leading-tight">{message}</span>
+      {/* Léger gradient pour la lisibilité */}
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent h-2/3 pointer-events-none" />
+
+      <div className="absolute bottom-2 left-3 flex flex-col z-10 text-left">
+        <span className="font-anton text-[20px] text-white tracking-wide leading-tight">
+          QUINE !
+        </span>
+        <span className="font-dm text-[9px] text-white/90">
+          {cleanMessage}
+        </span>
+      </div>
     </div>
   );
 }
