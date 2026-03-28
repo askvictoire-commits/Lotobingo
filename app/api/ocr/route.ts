@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       "gemini-1.5-pro-latest"
     ];
     let geminiRes: Response | null = null;
-    let errors: string[] = [];
+    const errors: string[] = [];
     let lastErrText = "";
 
     for (const model of models) {
