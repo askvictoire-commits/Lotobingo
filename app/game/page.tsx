@@ -67,7 +67,6 @@ export default function GamePage() {
 
     session.players.forEach((player) => {
       player.grids.forEach((grid, gridIdx) => {
-        let gridJustBingo = false;
         const lineResults = getLineResults(grid, newDrawn);
 
         lineResults.forEach(({ lineIndex, complete }) => {
@@ -86,7 +85,6 @@ export default function GamePage() {
               lr.lineIndex === lineIndex ? true : announcedLines.current.has(`${grid.id}-${lr.lineIndex}`)
             );
             if (allComplete) {
-              gridJustBingo = true;
               hasBingo = true;
             }
           }
