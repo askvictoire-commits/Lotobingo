@@ -12,12 +12,12 @@ export function playQuineSound() {
 
 export function playBingoSound() {
   try {
-    const audio = new Audio('/bingo-son.wav');
+    const audio = new Audio('/bingo-karcher.wav');
     audio.play().catch(() => {});
     setTimeout(() => {
       audio.pause();
       audio.currentTime = 0;
-    }, 5000);
+    }, 10000);
   } catch {
     //
   }
