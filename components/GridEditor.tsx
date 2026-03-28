@@ -25,6 +25,7 @@ export default function GridEditor({ grid, gridIndex, playerName, canDelete }: G
   const [preview, setPreview] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState<"idle" | "success" | "error">("idle");
+  const [scanErrorMsg, setScanErrorMsg] = useState<string>("");
 
   const allNumbers = grid.numbers.flat().filter((n) => n > 0);
   const hasDuplicates = allNumbers.length !== new Set(allNumbers).size;
@@ -56,6 +57,7 @@ export default function GridEditor({ grid, gridIndex, playerName, canDelete }: G
         const json = await res.json();
 
         if (!res.ok || !json.lines) {
+          setScanErrorMsg(json.error || `Erreur ${res.status}`);
           setScanStatus("error");
           return;
         }
@@ -70,7 +72,8 @@ export default function GridEditor({ grid, gridIndex, playerName, canDelete }: G
         });
 
         setScanStatus("success");
-      } catch {
+      } catch (err) {
+        setScanErrorMsg(String(err));
         setScanStatus("error");
       } finally {
         setScanning(false);
@@ -85,6 +88,7 @@ export default function GridEditor({ grid, gridIndex, playerName, canDelete }: G
   const resetScan = () => {
     setPreview(null);
     setScanStatus("idle");
+    setScanErrorMsg("");
   };
 
   return (
@@ -177,7 +181,7 @@ export default function GridEditor({ grid, gridIndex, playerName, canDelete }: G
           )}
           {scanStatus === "error" && (
             <div className="flex-1 text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2.5 font-dm leading-relaxed">
-              ⚠️ Scan impossible, remplis les numéros manuellement
+              ⚠️ {scanErrorMsg || "Scan impossible, remplis les numéros manuellement"}
             </div>
           )}
         </div>
