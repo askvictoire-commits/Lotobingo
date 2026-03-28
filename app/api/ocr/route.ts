@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
                 ],
               },
             ],
-            generationConfig: { temperature: 0, maxOutputTokens: 512 },
+            generationConfig: { temperature: 0, maxOutputTokens: 2048 },
           }),
         }
       );
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       // Return the error from the first model (usually the most preferred one)
       let friendlyError = "Gemini API error";
       try {
-        const firstErr = errors[0];
+        const firstErr = errors[0] || "Unknown Error";
         const parsed = JSON.parse(firstErr.substring(firstErr.indexOf('{')));
         friendlyError = parsed?.error?.message || friendlyError;
       } catch { /* ignore */ }
@@ -69,41 +69,50 @@ export async function POST(req: NextRequest) {
     }
 
     const geminiData = await geminiRes.json();
-
-    const rawText: string =
-      geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const rawText: string = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
 
     console.log("Gemini raw response:", rawText);
 
     if (!rawText) {
-      return NextResponse.json(
-        { error: "Empty response from Gemini" },
-        { status: 422 }
-      );
+      return NextResponse.json({ error: "Empty response from Gemini" }, { status: 422 });
     }
 
-    // Strip markdown code blocks if present
-    const cleaned = rawText
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
+    // Nettoyage agressif : enlève les quotes Markdown et espace autour
+    let cleaned = rawText.replace(/```(json)?/gi, "").replace(/```/g, "").trim();
 
-    // Extract JSON object
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json(
-        { error: `JSON introuvable dans: ${cleaned.slice(0, 100)}` },
-        { status: 422 }
-      );
+    let parsed: any;
+    try {
+      // Première tentative : parser le json nettoyé directement
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // Deuxième tentative : extraction via regex pour trouver le premier { et le dernier }
+      const startIndex = cleaned.indexOf("{");
+      const endIndex = cleaned.lastIndexOf("}");
+      if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+        try {
+           parsed = JSON.parse(cleaned.substring(startIndex, endIndex + 1));
+        } catch {
+           return NextResponse.json({ error: `Erreur de lecture JSON. Début extrait: ${cleaned.substring(startIndex, startIndex + 50)}...` }, { status: 422 });
+        }
+      } else {
+         // Peut-être qu'il a juste renvoyé le tableau [ [...] ] ?
+         const startArr = cleaned.indexOf("[");
+         const endArr = cleaned.lastIndexOf("]");
+         if (startArr !== -1 && endArr !== -1 && endArr > startArr) {
+            try {
+               const arrayParsed = JSON.parse(cleaned.substring(startArr, endArr + 1));
+               parsed = { lines: arrayParsed };
+            } catch {
+               return NextResponse.json({ error: `JSON incomplet/illisible: ${cleaned.slice(0, 100)}...` }, { status: 422 });
+            }
+         } else {
+            return NextResponse.json({ error: `JSON introuvable dans la réponse: ${cleaned.slice(0, 100)}...` }, { status: 422 });
+         }
+      }
     }
-
-    const parsed = JSON.parse(jsonMatch[0]);
 
     if (!parsed.lines || !Array.isArray(parsed.lines) || parsed.lines.length === 0) {
-      return NextResponse.json(
-        { error: "Structure invalide (pas de lignes)" },
-        { status: 422 }
-      );
+      return NextResponse.json({ error: "Structure invalide (pas de lignes)" }, { status: 422 });
     }
 
     // Normalize: ensure exactly 3 rows of 9 (pad/truncate as needed)
