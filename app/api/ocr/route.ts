@@ -78,12 +78,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Nettoyage agressif : enlève les quotes Markdown et espace autour
-    let cleaned = rawText.replace(/```(json)?/gi, "").replace(/```/g, "").trim();
+    const cleaned = rawText.replace(/```(json)?/gi, "").replace(/```/g, "").trim();
 
-    let parsed: any;
+    let parsed: { lines?: unknown[] } = {};
     try {
       // Première tentative : parser le json nettoyé directement
-      parsed = JSON.parse(cleaned);
+      parsed = JSON.parse(cleaned) as { lines?: unknown[] };
     } catch {
       // Deuxième tentative : extraction via regex pour trouver le premier { et le dernier }
       const startIndex = cleaned.indexOf("{");
@@ -111,13 +111,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!parsed.lines || !Array.isArray(parsed.lines) || parsed.lines.length === 0) {
+    const parsedLines = parsed.lines;
+    if (!parsedLines || !Array.isArray(parsedLines) || parsedLines.length === 0) {
       return NextResponse.json({ error: "Structure invalide (pas de lignes)" }, { status: 422 });
     }
 
     // Normalize: ensure exactly 3 rows of 9 (pad/truncate as needed)
     const lines: number[][] = [0, 1, 2].map((i) => {
-      const row: unknown[] = Array.isArray(parsed.lines[i]) ? parsed.lines[i] : [];
+      const row: unknown[] = Array.isArray(parsedLines[i]) ? (parsedLines[i] as unknown[]) : [];
       const normalized = Array.from({ length: 9 }, (_, j) => {
         const n = Number(row[j]);
         return isNaN(n) ? 0 : Math.min(100, Math.max(0, Math.round(n)));
